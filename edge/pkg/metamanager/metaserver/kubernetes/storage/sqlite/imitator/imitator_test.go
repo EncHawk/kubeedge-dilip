@@ -80,3 +80,41 @@ func TestEventListFormats(t *testing.T) {
 		})
 	}
 }
+
+func TestEventPreservesLargeInteger(t *testing.T) {
+	const value int64 = 9007199254740993 //2^53 + 1
+	const item = `{"apiVersion":"v1","kind":"Pod","metadata":{"name":"first"},"spec":{"large":9007199254740993}}`
+	tests := []struct {
+		name    string
+		content interface{}
+	}{
+		{"object list", []byte(`{"apiVersion":"v1","kind":"PodList","items":[` + item + `]}`)},
+		{"array bytes", []byte(`[` + item + `]`)},
+		{"array body", []map[string]interface{}{{
+			"apiVersion": "v1", "kind": "Pod", "metadata": map[string]interface{}{"name": "first"},
+			"spec": map[string]interface{}{"large": value},
+		}}},
+	}
+
+	s := newV2Client().(*imitator)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &model.Message{
+				Router:  model.MessageRoute{Operation: model.InsertOperation, Resource: "default/pod"},
+				Content: tt.content,
+			}
+			events := s.Event(msg)
+			if len(events) != 1 {
+				t.Fatalf("got %d events, want 1", len(events))
+			}
+			obj, ok := events[0].Object.(*unstructured.Unstructured)
+			if !ok {
+				t.Fatalf("event object type = %T, want *unstructured.Unstructured", events[0].Object)
+			}
+			got, found, err := unstructured.NestedInt64(obj.Object, "spec", "large")
+			if err != nil || !found || got != value {
+				t.Errorf("spec.large = %d (found %t, error %v), want int64 %d", got, found, err, value)
+			}
+		})
+	}
+}

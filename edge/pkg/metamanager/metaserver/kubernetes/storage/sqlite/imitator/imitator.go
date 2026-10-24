@@ -11,6 +11,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	kjson "k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/klog/v2"
@@ -252,7 +253,7 @@ func (s *imitator) Event(msg *model.Message) []watch.Event {
 	}
 	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '[' {
 		var items []map[string]interface{}
-		if err := json.Unmarshal(trimmed, &items); err != nil {
+		if err := kjson.Unmarshal(trimmed, &items); err != nil {
 			klog.Errorf("failed to unmarshal message content to unstructured array: %+v", err)
 			return ret
 		}
